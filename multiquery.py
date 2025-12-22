@@ -208,6 +208,7 @@ def compute_rrf_scores(rankings, k=60):
             )
 
     return scores, contributions
+
 def visualize_rrf_debug(doc_map, rankings, k=60, max_docs=5):
     scores, contributions = compute_rrf_scores(rankings, k)
 

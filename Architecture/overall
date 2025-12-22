@@ -1,0 +1,51 @@
+┌──────────────┐
+│   User Query │
+└──────┬───────┘
+       │
+       ▼
+┌────────────────────────┐
+│  Query Orchestrator    │  ← query.py
+│  (Answer Pipeline)     │
+└──────┬─────────────────┘
+       │
+       ▼
+┌────────────────────────┐
+│  LLM Multi-Query       │  ← multi_query.py
+│  Expansion (SAFE)      │
+└──────┬─────────────────┘
+       │
+       ▼
+┌────────────────────────┐
+│  Vector Retrieval      │  ← ChromaDB
+│  (per query)           │
+└──────┬─────────────────┘
+       │
+       ▼
+┌────────────────────────┐
+│  RRF + Intent Fusion   │  ← multi_query.py
+│  (Ranking Layer)       │
+└──────┬─────────────────┘
+       │
+       ▼
+┌────────────────────────┐
+│  Summary Extraction    │
+│  + Guardrails          │
+└──────┬─────────────────┘
+       │
+       ▼
+┌────────────────────────┐
+│  LLM Answer Generator  │
+│  (Grounded)            │
+└──────┬─────────────────┘
+       │
+       ▼
+┌────────────────────────┐
+│  Sentiment + Confidence│
+│  (Heuristic Layer)     │
+└──────┬─────────────────┘
+       │
+       ▼
+┌────────────────────────┐
+│  Final Answer Output   │
+└────────────────────────┘
+

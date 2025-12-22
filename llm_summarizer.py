@@ -37,6 +37,3 @@ Write a concise 2–3 sentence summary focused on:
     summary =llm.invoke(prompt)
     print("LLM SUMMARY:", summary.content.strip())
     return summary.content.strip()
-llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    temperature=0)

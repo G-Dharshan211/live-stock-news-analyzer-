@@ -1,0 +1,45 @@
+┌──────────────────┐
+│ Google News RSS  │
+└──────┬───────────┘
+       │
+       ▼
+┌──────────────────┐
+│ RSS Cleaner      │
+│ (HTML → Text)    │
+└──────┬───────────┘
+       │
+       ▼
+┌────────────────────────┐
+│ Summary Quality Check  │
+│ (title ≈ summary ?)   │
+└──────┬─────────────────┘
+       │
+       ├── GOOD → Store as-is
+       │
+       └── BAD → Mark for LLM backfill
+                    │
+                    ▼
+           ┌──────────────────┐
+           │ Headline-based   │
+           │ LLM Summary      │
+           └──────┬───────────┘
+                  ▼
+┌────────────────────────┐
+│ ChromaDB Vector Store  │
+│ (documents + metadata)│
+└────────────────────────┘
+
+STORED DOCUMENT FORMAT (in chromaDB):
+------------------------------------
+Stock: GOOGL
+Title: ...
+Summary: ...
+
+METADATA:
+-------------------------------
+ticker,
+timestamp
+date
+source_url
+content_type: "news"
+summary_source: Whether requires llm or not

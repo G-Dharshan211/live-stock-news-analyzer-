@@ -38,40 +38,92 @@ Final Answer:
 # ===============================
 # Sentiment Words
 # ===============================
-NEGATIVE_WORDS = {
-    "slides", "falls", "droops", "pressure", "concerns",
-    "jitters", "uncertainty", "scrutiny", "weakness"
+NEGATIVE_WEIGHTS = {
+    "slides": 2,
+    "falls": 2,
+    "fell": 2,
+    "drops": 2,
+    "declines": 2,
+    "pressure": 1,
+    "concerns": 1,
+    "uncertainty": 1,
+    "scrutiny": 1,
+    "weakness": 1,
+    "selloff": 3
 }
 
-POSITIVE_WORDS = {
-    "rises", "gains", "upgrades", "raises target",
-    "bullish", "strong", "growth", "optimistic"
+POSITIVE_WEIGHTS = {
+    "rises": 2,
+    "rose": 2,
+    "gains": 2,
+    "surges": 3,
+    "jumps": 2,
+    "upgrades": 3,
+    "raises target": 3,
+    "bullish": 2,
+    "strong": 1,
+    "growth": 1,
+    "optimism": 1
 }
+
+HEDGING_WORDS = {
+    "could", "might", "may", "potential", "possibly"
+}
+
+def score_sentiment(summaries):
+    """
+    Returns a signed sentiment score.
+    Positive = bullish bias
+    Negative = bearish bias
+    """
+    score = 0
+
+    for s in summaries:
+        text = s.lower()
+
+        for w, wt in POSITIVE_WEIGHTS.items():
+            score += wt * text.count(w)
+
+        for w, wt in NEGATIVE_WEIGHTS.items():
+            score -= wt * text.count(w)
+
+    return score
+
+def hedging_penalty(summaries):
+    penalty = 0
+    for s in summaries:
+        text = s.lower()
+        for w in HEDGING_WORDS:
+            penalty += text.count(w)
+    return penalty
 
 # ===============================
 # Sentiment + Confidence
 # ===============================
-def infer_sentiment_and_confidence(summaries: List[str]):
-    text = " ".join(summaries).lower()
+def infer_sentiment_and_confidence(summaries):
+    sentiment_score = score_sentiment(summaries)
+    hedge_penalty = hedging_penalty(summaries)
 
-    neg = sum(word in text for word in NEGATIVE_WORDS)
-    pos = sum(word in text for word in POSITIVE_WORDS)
-
-    if pos > neg:
+    # ---- Sentiment label ----
+    if sentiment_score >= 3:
         sentiment = "Positive"
-    elif neg > pos:
+    elif sentiment_score <= -3:
         sentiment = "Negative"
     else:
         sentiment = "Mixed"
 
-    if len(summaries) >= 3 and abs(pos - neg) >= 1:
+    # ---- Confidence logic ----
+    effective_score = abs(sentiment_score) - hedge_penalty
+
+    if effective_score >= 5 and len(summaries) >= 3:
         confidence = "High"
-    elif len(summaries) >= 2:
+    elif effective_score >= 3 and len(summaries) >= 2:
         confidence = "Medium"
     else:
         confidence = "Low"
 
     return sentiment, confidence
+
 
 # ===============================
 # Context Builder

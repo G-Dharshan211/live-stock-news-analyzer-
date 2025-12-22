@@ -46,12 +46,12 @@ def fetch_stock_news_rss(ticker, limit=10):
 
         # If RSS summary is bad, store title only (for now)
         final_summary = summary if not requires_llm else ""
-        print("TITLE:", title)
-        print("Date:", publish_time)
-        print("SUMMARY:", summary)
-        print("NEEDS_LLM:", requires_llm)
-        print("FINAL_SUMMARY:", final_summary)
-        print("-" * 80)
+        #print("TITLE:", title)
+        #print("Date:", publish_time)
+        #print("SUMMARY:", summary)
+        #print("NEEDS_LLM:", requires_llm)
+        #print("FINAL_SUMMARY:", final_summary)
+        #print("-" * 80)
 
 
         text = f"""

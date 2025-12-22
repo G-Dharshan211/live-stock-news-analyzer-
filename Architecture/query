@@ -1,0 +1,44 @@
+QUERY PIPELINE:
+--------------------
+user asks:
+"how does googl perfoms"
+
+QUERY ORCHESTRATOR:
+-Entry point
+-Controls entire flow
+-No retrival logic inside
+
+MULTI QUERY:
+Original query:
+"how does GOOGL perform"
+
+Expanded queries:
+• how does GOOGL perform
+• GOOGL stock performance today
+• why is GOOGL stock moving
+• recent market reaction to GOOGL
+
+VECTOR RETRIVAL:
+Query 1 → Top K docs
+Query 2 → Top K docs
+Query 3 → Top K docs
+Query 4 → Top K docs
+
+AND FITERED BY:
+- timestamp >= now - 48 hours
+
+RRF +  INTENT AWARE RANK FUSION:
+• Vector similarity
+• Multi-query overlap
+• Intent relevance (performance / speculation)
+
+DEBUG VISUALIZTION:
+Document A
+  ├─ Query 1 rank 1
+  ├─ Query 2 rank 2
+  ├─ Intent rank 1
+  └─ Final RRF score ↑
+
+Document B
+  ├─ Query 1 rank 4
+  └─ Intent rank 5
