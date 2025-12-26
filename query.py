@@ -36,84 +36,55 @@ Final Answer:
 """
 
 # ===============================
-# Sentiment Words
+# Sentiment Weights
 # ===============================
 NEGATIVE_WEIGHTS = {
-    "slides": 2,
-    "falls": 2,
-    "fell": 2,
-    "drops": 2,
-    "declines": 2,
-    "pressure": 1,
-    "concerns": 1,
-    "uncertainty": 1,
-    "scrutiny": 1,
-    "weakness": 1,
+    "slides": 2, "falls": 2, "fell": 2, "drops": 2,
+    "declines": 2, "pressure": 1, "concerns": 1,
+    "uncertainty": 1, "scrutiny": 1, "weakness": 1,
     "selloff": 3
 }
 
 POSITIVE_WEIGHTS = {
-    "rises": 2,
-    "rose": 2,
-    "gains": 2,
-    "surges": 3,
-    "jumps": 2,
-    "upgrades": 3,
-    "raises target": 3,
-    "bullish": 2,
-    "strong": 1,
-    "growth": 1,
+    "rises": 2, "rose": 2, "gains": 2, "surges": 3,
+    "jumps": 2, "upgrades": 3, "raises target": 3,
+    "bullish": 2, "strong": 1, "growth": 1,
     "optimism": 1
 }
 
-HEDGING_WORDS = {
-    "could", "might", "may", "potential", "possibly"
-}
-
-def score_sentiment(summaries):
-    """
-    Returns a signed sentiment score.
-    Positive = bullish bias
-    Negative = bearish bias
-    """
-    score = 0
-
-    for s in summaries:
-        text = s.lower()
-
-        for w, wt in POSITIVE_WEIGHTS.items():
-            score += wt * text.count(w)
-
-        for w, wt in NEGATIVE_WEIGHTS.items():
-            score -= wt * text.count(w)
-
-    return score
-
-def hedging_penalty(summaries):
-    penalty = 0
-    for s in summaries:
-        text = s.lower()
-        for w in HEDGING_WORDS:
-            penalty += text.count(w)
-    return penalty
+HEDGING_WORDS = {"could", "might", "may", "potential", "possibly"}
 
 # ===============================
 # Sentiment + Confidence
 # ===============================
+def score_sentiment(summaries):
+    score = 0
+    for s in summaries:
+        text = s.lower()
+        for w, wt in POSITIVE_WEIGHTS.items():
+            score += wt * text.count(w)
+        for w, wt in NEGATIVE_WEIGHTS.items():
+            score -= wt * text.count(w)
+    return score
+
+def hedging_penalty(summaries):
+    return sum(
+        s.lower().count(w)
+        for s in summaries
+        for w in HEDGING_WORDS
+    )
+
 def infer_sentiment_and_confidence(summaries):
     sentiment_score = score_sentiment(summaries)
     hedge_penalty = hedging_penalty(summaries)
+    effective_score = abs(sentiment_score) - hedge_penalty
 
-    # ---- Sentiment label ----
     if sentiment_score >= 3:
         sentiment = "Positive"
     elif sentiment_score <= -3:
         sentiment = "Negative"
     else:
         sentiment = "Mixed"
-
-    # ---- Confidence logic ----
-    effective_score = abs(sentiment_score) - hedge_penalty
 
     if effective_score >= 5 and len(summaries) >= 3:
         confidence = "High"
@@ -124,6 +95,32 @@ def infer_sentiment_and_confidence(summaries):
 
     return sentiment, confidence
 
+# ===============================
+# Evidence helpers
+# ===============================
+def extract_key_evidence_with_links(docs, metas, max_points=3):
+    evidence = []
+    seen = set()
+
+    for doc, meta in zip(docs, metas):
+        if len(evidence) >= max_points:
+            break
+
+        summary = extract_summary(doc)
+        link = meta.get("source_url", "")
+
+        if summary and summary not in seen:
+            evidence.append((summary, link))
+            seen.add(summary)
+
+    return evidence
+
+def build_evidence_html(evidence):
+    return "<br><br>".join(
+        f"• {s}<br>&nbsp;&nbsp;🔗 <a href=\"{l}\" target=\"_blank\">Read article</a>"
+        if l else f"• {s}"
+        for s, l in evidence
+    )
 
 # ===============================
 # Context Builder
@@ -132,7 +129,6 @@ def build_answer_context(query: str, summaries: List[str]) -> str:
     summaries_text = "\n".join(
         [f"{i+1}. {s}" for i, s in enumerate(summaries)]
     )
-
     return f"""
 User Question:
 {query}
@@ -144,19 +140,19 @@ Recent News Summaries:
 # ===============================
 # CORE QUERY PIPELINE
 # ===============================
-def answer_user_query(
+def answer_user_query_internal(
     query: str,
     llm,
     hours_lookback: int = 48,
     n_results: int = 5
-) -> str:
+):
     collection = get_collection()
 
-    # 🔹 1. LLM Multi-Query Expansion
+    #  Multi-query expansion
     queries = generate_llm_multi_queries(query, llm)
 
-    # 🔹 2. Retrieve per query
-    docs_per_query, _ = retrieve_multi_query_results(
+    #  Retrieval
+    docs_per_query, metas_per_query = retrieve_multi_query_results(
         collection=collection,
         queries=queries,
         hours_lookback=hours_lookback,
@@ -164,62 +160,101 @@ def answer_user_query(
     )
 
     if not any(docs_per_query):
-        return "There is insufficient recent information to answer this question."
+        return "There is insufficient recent information to answer this question.", "Neutral", "Low", [], []
 
-    # 🔹 3. RRF Fusion (multi-query + intent)
-    fused_docs = rrf_multi_query_fusion(
-        docs_per_query,
-        query,
+    #  RRF fusion
+    fused_docs, fused_metas = rrf_multi_query_fusion(
+        docs_per_query=docs_per_query,
+        metas_per_query=metas_per_query,
+        query=query,
         debug=False
     )
 
-
-    # 🔹 4. Extract summaries
-    summaries = [
-        extract_summary(doc)
-        for doc in fused_docs
-        if extract_summary(doc)
-    ]
-
+    summaries = [extract_summary(d) for d in fused_docs if extract_summary(d)]
     if not summaries:
-        return "Recent news coverage does not provide enough detail to assess this."
+        return "Recent news coverage does not provide enough detail to assess this.", "Neutral", "Low", [], []
 
-    # 🔹 5. Sentiment & confidence
+    #  Sentiment & confidence
     sentiment, confidence = infer_sentiment_and_confidence(summaries)
 
-    # 🔹 6. LLM Answer Generation
+    #  Evidence
+    evidence = extract_key_evidence_with_links(fused_docs, fused_metas)
+    evidence_html = build_evidence_html(evidence)
+
+    #  Answer generation
     context = build_answer_context(query, summaries)
-    prompt = ANSWER_PROMPT.format(context=context)
+    response = llm.invoke(ANSWER_PROMPT.format(context=context))
 
-    response = llm.invoke(prompt)
+    # Format evidence for API response
+    evidence_list = [
+        {"summary": s, "source_url": l}
+        for s, l in evidence
+    ]
 
-    final_answer = f"""{response.content.strip()}
+    # Format news for API response
+    news_list = [
+        {
+            "title": m.get("title", ""),
+            "timestamp": m.get("date", ""),
+            "source": m.get("source", "")
+        }
+        for m in fused_metas
+    ]
+
+    return (
+        response.content.strip(),
+        sentiment,
+        confidence,
+        evidence_list,
+        news_list
+    )
+
+def answer_user_query(
+    query: str,
+    llm,
+    hours_lookback: int = 48,
+    n_results: int = 5
+) -> str:
+    """CLI/Text-only wrapper for backward compatibility"""
+    answer, sentiment, confidence, evidence, news = answer_user_query_internal(
+        query, llm, hours_lookback, n_results
+    )
+    
+    evidence_html = build_evidence_html([(e["summary"], e["source_url"]) for e in evidence])
+    
+    return f"""{answer}
 
 Overall sentiment: {sentiment}
 Confidence level: {confidence}
+
+Key evidence:
+{evidence_html}
 """
 
-    return final_answer.strip()
+def answer_user_query_json(
+    query: str,
+    hours_lookback: int = 48,
+    n_results: int = 5
+):
+    from langchain_groq import ChatGroq
+    
+    # Initialize LLM (Gemini)
+    
+    llm=ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
 
-# ===============================
-# Example Run
-# ===============================
-"""if __name__ == "__main__":
-    from langchain_google_genai import ChatGoogleGenerativeAI
 
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
-        temperature=0
-    )
-
-    query = "how does NVDIA perform"
-
-    answer = answer_user_query(
+    # Use internal pipeline
+    answer_text, sentiment, confidence, evidence, news = answer_user_query_internal(
         query=query,
         llm=llm,
-        hours_lookback=48,
-        n_results=5
+        hours_lookback=hours_lookback,
+        n_results=n_results
     )
 
-    print("\n📊 Answer:\n")
-    print(answer)"""
+    return {
+        "answer": answer_text,
+        "sentiment": sentiment,
+        "confidence": confidence,
+        "evidence": evidence,
+        "news": news
+    }

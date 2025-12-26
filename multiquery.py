@@ -149,44 +149,54 @@ def score_summary_for_intent(summary: str, intent: str) -> int:
 # ==============================
 # RRF Fusion Across Multi-Query + Intent
 # ==============================
-def rrf_multi_query_fusion(docs_per_query, query, debug=False):
+def rrf_multi_query_fusion(docs_per_query, metas_per_query, query, debug=False):
     intent = detect_intent(query)
 
-    doc_map = {}
+    doc_map = {}          # doc -> idx
+    meta_map = {}         # idx -> meta
     rankings = []
     idx = 0
 
-    for docs in docs_per_query:
+    # Build rankings from each query
+    for docs, metas in zip(docs_per_query, metas_per_query):
         ids = []
-        for doc in docs:
+        for doc, meta in zip(docs, metas):
             if doc not in doc_map:
                 doc_map[doc] = idx
+                meta_map[idx] = meta
                 idx += 1
             ids.append(doc_map[doc])
         rankings.append(ids)
 
+    # Intent-based ranking
     intent_rank = sorted(
         doc_map.keys(),
         key=lambda d: score_summary_for_intent(
             extract_summary(d),
-            intent
+            detect_intent(query)
         ),
         reverse=True
     )
 
     rankings.append([doc_map[d] for d in intent_rank])
 
-    # 🔍 Visualization hook
+    # Optional visualization
     if debug:
         visualize_rrf_debug(
             doc_map=doc_map,
             rankings=rankings
         )
 
+    # Final RRF fusion
     fused_ids = reciprocal_rank_fusion(rankings)
-    inverse_map = {v: k for k, v in doc_map.items()}
 
-    return [inverse_map[i] for i in fused_ids]
+    inverse_doc_map = {v: k for k, v in doc_map.items()}
+
+    fused_docs = [inverse_doc_map[i] for i in fused_ids]
+    fused_metas = [meta_map[i] for i in fused_ids]
+
+    return fused_docs, fused_metas
+
 
 def compute_rrf_scores(rankings, k=60):
     """

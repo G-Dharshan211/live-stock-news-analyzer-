@@ -17,3 +17,15 @@ def get_collection():
     )
 
     return collection
+
+def delete_news_for_ticker(ticker):
+    """Deletes all news articles for a given ticker from the DB."""
+    collection = get_collection()
+    print(f"🗑️ Deleting news for {ticker}...")
+    try:
+        collection.delete(
+            where={"ticker": ticker}
+        )
+        print(f"✅ Deleted news for {ticker}")
+    except Exception as e:
+        print(f"❌ Error deleting news for {ticker}: {e}")

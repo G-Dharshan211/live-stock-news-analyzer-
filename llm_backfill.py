@@ -1,9 +1,10 @@
 from vector_store import get_collection
 from llm_summarizer import summarize_from_headline
+from langchain_groq import ChatGroq
 
 def backfill_llm_summaries(limit=5):
     collection = get_collection()
-
+    llm=ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
     results = collection.get(
         where={"summary_source": "needs_llm"},
         limit=limit
@@ -24,6 +25,7 @@ def backfill_llm_summaries(limit=5):
         print(f"🧠 Headline summarization: {title}")
 
         summary = summarize_from_headline(
+            llm=llm,
             title=title,
             publisher=meta.get("publisher", "Unknown"),
             date=meta.get("date", "")
