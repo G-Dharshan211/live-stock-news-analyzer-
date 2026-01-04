@@ -107,7 +107,7 @@ def extract_key_evidence_with_links(docs, metas, max_points=3):
             break
 
         summary = extract_summary(doc)
-        link = meta.get("source_url", "")
+        link = meta.get("source_url", meta.get("url", ""))
 
         if summary and summary not in seen:
             evidence.append((summary, link))
@@ -195,11 +195,12 @@ def answer_user_query_internal(
     news_list = [
         {
             "title": m.get("title", ""),
+            "url": m.get("source_url", m.get("url", "")),
             "timestamp": m.get("date", ""),
             "source": m.get("source", "")
         }
         for m in fused_metas
-    ]
+    ][:5]  # Limit to top 5 live news items
 
     return (
         response.content.strip(),

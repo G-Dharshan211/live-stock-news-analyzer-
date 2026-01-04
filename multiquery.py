@@ -93,6 +93,8 @@ def generate_llm_multi_queries(query: str, llm, max_queries=5):
 def retrieve_multi_query_results(collection, queries, hours_lookback, n_results):
     cutoff = (datetime.now() - timedelta(hours=hours_lookback)).timestamp()
 
+    where_clause = {"timestamp": {"$gte": cutoff}}
+
     all_docs = []
     all_metas = []
 
@@ -100,7 +102,7 @@ def retrieve_multi_query_results(collection, queries, hours_lookback, n_results)
         results = collection.query(
             query_texts=[q],
             n_results=n_results,
-            where={"timestamp": {"$gte": cutoff}}
+            where=where_clause
         )
 
         all_docs.append(results.get("documents", [[]])[0])

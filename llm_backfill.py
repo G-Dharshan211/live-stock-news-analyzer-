@@ -30,14 +30,14 @@ def backfill_llm_summaries(limit=5):
             publisher=meta.get("publisher", "Unknown"),
             date=meta.get("date", "")
         )
-        #print("LLM SUMMARY in llm_backfill:", summary)
+        print("LLM SUMMARY in llm_backfill:", summary)
 
         if not summary:
             print("⚠️ Empty LLM summary")
             continue
 
         new_text = f"""
-Stock: {meta['ticker']}
+Stock: {meta.get('symbol', meta.get('ticker', 'UNKNOWN'))}
 Title: {title}
 Summary: {summary}
 """.strip()
