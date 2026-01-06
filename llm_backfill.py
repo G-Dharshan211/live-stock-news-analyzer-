@@ -22,7 +22,7 @@ def backfill_llm_summaries(limit=5):
         title_line = [l for l in doc.splitlines() if l.startswith("Title:")]
         title = title_line[0].replace("Title:", "").strip()
 
-        print(f"🧠 Headline summarization: {title}")
+        #print(f"🧠 Headline summarization: {title}")
 
         summary = summarize_from_headline(
             llm=llm,
@@ -30,7 +30,7 @@ def backfill_llm_summaries(limit=5):
             publisher=meta.get("publisher", "Unknown"),
             date=meta.get("date", "")
         )
-        print("LLM SUMMARY in llm_backfill:", summary)
+        #print("LLM SUMMARY in llm_backfill:", summary)
 
         if not summary:
             print("⚠️ Empty LLM summary")

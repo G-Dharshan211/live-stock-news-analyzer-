@@ -11,6 +11,7 @@ from multiquery import (
     rrf_multi_query_fusion,
     extract_summary
 )
+from ingestion.stock_details import fetch_stock_details
 
 load_dotenv()
 
@@ -30,7 +31,10 @@ Rules:
 - Focus on recent performance and investor-relevant implications.
 - Keep the answer concise and factual.
 
+{real_time_context}
+
 {context}
+
 
 Final Answer:
 """
@@ -125,11 +129,13 @@ def build_evidence_html(evidence):
 # ===============================
 # Context Builder
 # ===============================
-def build_answer_context(query: str, summaries: List[str]) -> str:
+def build_answer_context(query: str, summaries: List[str], real_time_info: str = "") -> str:
     summaries_text = "\n".join(
         [f"{i+1}. {s}" for i, s in enumerate(summaries)]
     )
     return f"""
+{real_time_info}
+
 User Question:
 {query}
 
@@ -142,9 +148,11 @@ Recent News Summaries:
 # ===============================
 def answer_user_query_internal(
     query: str,
+
     llm,
     hours_lookback: int = 48,
-    n_results: int = 5
+    n_results: int = 5,
+    ticker: str = None
 ):
     collection = get_collection()
 
@@ -182,8 +190,26 @@ def answer_user_query_internal(
     evidence_html = build_evidence_html(evidence)
 
     #  Answer generation
-    context = build_answer_context(query, summaries)
-    response = llm.invoke(ANSWER_PROMPT.format(context=context))
+    real_time_context = ""
+    if ticker:
+        print(f"   📊 Injecting Real-Time Data for {ticker}...")
+        details = fetch_stock_details(ticker)
+        if details:
+             real_time_context = f"""
+REAL-TIME MARKET DATA (Use this for precise numbers):
+Price: {details.get('price')} {details.get('currency')}
+Change: {details.get('change'):.2f} ({details.get('change_percent'):.2f}%)
+Day Range: Low {details.get('low')} - High {details.get('high')}
+Volume: {details.get('volume')}
+PE Ratio: {details.get('pe_ratio')}
+ROE: {details.get('roe')}
+Market Cap: {details.get('market_cap')}
+""".strip()
+
+    context = build_answer_context(query, summaries, real_time_context)
+    # Pass empty real_time_context to prompt structure if used there too, or just rely on context builder
+    response = llm.invoke(ANSWER_PROMPT.format(context=context, real_time_context="")) # real_time_context is already inside 'context' via builder
+
 
     # Format evidence for API response
     evidence_list = [
@@ -235,7 +261,8 @@ Key evidence:
 def answer_user_query_json(
     query: str,
     hours_lookback: int = 48,
-    n_results: int = 5
+    n_results: int = 5,
+    ticker: str = None
 ):
     from langchain_groq import ChatGroq
     
@@ -249,7 +276,8 @@ def answer_user_query_json(
         query=query,
         llm=llm,
         hours_lookback=hours_lookback,
-        n_results=n_results
+        n_results=n_results,
+        ticker=ticker
     )
 
     return {

@@ -7,9 +7,11 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-from ingestion import ingest_news
+from ingest_all import ingest_all
 from query import answer_user_query_json
 from vector_store import delete_news_for_ticker
+from ingestion.stock_details import fetch_stock_details
+# from llm_backfill import backfill_llm_summaries # Imported dynamically where needed
 
 
 # -----------------------
@@ -36,6 +38,8 @@ app.add_middleware(
 # -----------------------
 class QueryRequest(BaseModel):
     question: str
+    ticker: str = None  # Optional ticker for context injection
+    hours_lookback: int = 120  # Default to 5 days matching backend capability
 
 class Evidence(BaseModel):
     summary: str
@@ -43,6 +47,7 @@ class Evidence(BaseModel):
 
 class NewsItem(BaseModel):
     title: str
+    url: str
     timestamp: str
     source: str
 
@@ -63,7 +68,7 @@ class WatchlistRequest(BaseModel):
 # Persistent Watchlist
 # -----------------------
 WATCHLIST_FILE = "watchlist.json"
-DEFAULT_WATCHLIST = ["NVDA", "AAPL", "GOOGL"]
+DEFAULT_WATCHLIST = ["ITC", "AAPL", "GOOGL","RELIANCE"]
 
 def load_watchlist():
     if not os.path.exists(WATCHLIST_FILE):
@@ -86,14 +91,14 @@ def ingest_all_watchlist(watchlist: List[str]):
     print("🚀 Triggering background ingestion for watchlist...")
     for ticker in watchlist:
         try:
-            ingest_news(ticker)
+            ingest_all(ticker)
         except Exception as e:
             print(f"⚠️ Failed to ingest {ticker}: {e}")
     print("✅ Background ingestion complete.")
 
 def ingest_single_ticker(ticker: str):
     try:
-        ingest_news(ticker)
+        ingest_all(ticker)
     except Exception as e:
         print(f"⚠️ Failed to ingest {ticker}: {e}")
 
@@ -103,17 +108,14 @@ def remove_single_ticker_data(ticker: str):
     except Exception as e:
         print(f"⚠️ Failed to remove data for {ticker}: {e}")
 
-# -----------------------
-# Routes
-# -----------------------
-
 @app.post("/api/query", response_model=StockResponse)
 def query_from_search(req: QueryRequest):
     try:
         return answer_user_query_json(
             query=req.question,
-            hours_lookback=48,
-            n_results=5
+            hours_lookback=req.hours_lookback,
+            n_results=5,
+            ticker=req.ticker
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -158,7 +160,7 @@ def remove_from_watchlist(req: WatchlistRequest, background_tasks: BackgroundTas
 @app.post("/api/ingest")
 def ingest_stock_news(req: IngestRequest):
     try:
-        ingest_news(req.ticker.upper())
+        ingest_all(req.ticker.upper())
         return {"status": "success", "ticker": req.ticker.upper()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -169,8 +171,19 @@ def get_stock_info(ticker: str):
         result = answer_user_query_json(
             query=f"how does {ticker.upper()} perform",
             hours_lookback=48,
-            n_results=5
+            n_results=5,
+            ticker=ticker # Inject real-time data for this stock
         )
         return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/stocks/{ticker}/details")
+def get_stock_details_endpoint(ticker: str):
+    try:
+        data = fetch_stock_details(ticker)
+        if not data:
+             raise HTTPException(status_code=404, detail="Stock details not found")
+        return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

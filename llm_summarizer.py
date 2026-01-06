@@ -34,5 +34,5 @@ Write a concise 2–3 sentence summary focused on:
 
     # 🔴 Replace this with your LLM call
     summary =llm.invoke(prompt)
-    print("LLM SUMMARY:", summary.content.strip())
+    #print("LLM SUMMARY:", summary.content.strip())
     return summary.content.strip()
